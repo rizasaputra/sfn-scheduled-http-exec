@@ -1,0 +1,60 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Choice",
+  "States": {
+    "Choice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.scheduleTime",
+          "IsPresent": true,
+          "Next": "Wait"
+        }
+      ],
+      "Default": "Lambda Invoke"
+    },
+    "Wait": {
+      "Type": "Wait",
+      "TimestampPath": "$.scheduleTime",
+      "Next": "Lambda Invoke"
+    },
+    "Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:REGION:AWS_ACCOUNT_ID:function:FUNCTION_NAME:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.TaskFailed"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "SendToSQS",
+          "ResultPath": "$.error"
+        }
+      ],
+      "End": true
+    },
+    "SendToSQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "https://sqs.REGION.amazonaws.com/AWS_ACCOUNT_ID/QUEUE_NAME",
+        "MessageBody.$": "$"
+      },
+      "End": true
+    }
+  }
+}
